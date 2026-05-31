@@ -271,6 +271,7 @@
     <div class="header-badges">
       <div class="badge badge-sui">Sui Network</div>
       <div class="badge badge-walrus">Walrus</div>
+      <button id="lang-btn" onclick="toggleLang()" style="margin-left:8px;background:rgba(77,162,255,0.12);border:1px solid var(--sui-border);color:var(--sui-blue);font-family:var(--font-mono);font-size:11px;padding:4px 12px;border-radius:20px;cursor:pointer;transition:all 0.2s;">🌐 中文</button>
     </div>
   </header>
 
@@ -567,10 +568,94 @@ const DEFI_RESULTS = {
   ]},
 };
 
+const SCAN_RESULTS_ZH = {
+  flash: {
+    score: 82, level: 'HIGH',
+    summary: '閃電貸資金池',
+    findings: [
+      { sev: 'high', icon: '🔴', title: '缺少重入攻擊防護', desc: 'borrow() 函式沒有防止重入攻擊的保護機制。攻擊者可在 repay() 執行前遞迴呼叫 borrow()，反覆提取資金直到資金池被清空。' },
+      { sev: 'high', icon: '🔴', title: '還款金額未驗證', desc: 'repay() 沒有驗證還款金額是否包含手續費。借款人可以歸還比借出金額更少的資金而不受任何懲罰。' },
+      { sev: 'medium', icon: '🟡', title: '缺少閃電貸憑證模式', desc: 'Sui 的最佳實踐要求使用 hot-potato 的 FlashLoanReceipt 來強制原子還款。此合約採用可被繞過的手動驗證模式。' },
+      { sev: 'low', icon: '🟢', title: '手續費參數未設上限', desc: 'fee_bps 在合約建立時設定，沒有最大值限制。管理員可能將手續費設為超過 100%，導致資金被永久鎖定。' },
+    ]
+  },
+  liquidity: {
+    score: 67, level: 'MEDIUM',
+    summary: 'AMM 流動性池',
+    findings: [
+      { sev: 'high', icon: '🔴', title: 'Oracle 價格操縱風險', desc: 'get_price() 使用即時儲備比例作為價格預言機。攻擊者可透過閃電貸操縱儲備量，在同一筆交易中扭曲價格。' },
+      { sev: 'medium', icon: '🟡', title: '缺少滑點保護', desc: 'add_liquidity() 接受任意比例的代幣。沒有滑點邊界，MEV 機器人可以搶先執行 LP 的存入操作來抽取價值。' },
+      { sev: 'medium', icon: '🟡', title: '缺少最低流動性鎖定', desc: '第一位流動性提供者可以操縱初始比例，哄抬 LP 代幣價格以損害後續提供者的利益。' },
+      { sev: 'low', icon: '🟢', title: '整數除法精度損失', desc: 'reserve_a / reserve_b 使用整數除法。在低價值資金池中，這會造成顯著的價格計算不精確。' },
+    ]
+  },
+  staking: {
+    score: 55, level: 'MEDIUM',
+    summary: '質押合約',
+    findings: [
+      { sev: 'medium', icon: '🟡', title: '獎勵計算可能溢位', desc: 'amount * elapsed * REWARD_RATE 在大額質押且持有時間較長時可能超過 u64 最大值，導致獎勵計算錯誤甚至異常龐大。' },
+      { sev: 'high', icon: '🔴', title: '鎖定期限未被強制執行', desc: 'unstake() 直接刪除質押紀錄並退還資金，未檢查 lock_duration 是否已到期。所有質押激勵機制都可被完全繞過。' },
+      { sev: 'low', icon: '🟢', title: '缺少最高獎勵上限', desc: '沒有最高獎勵上限，若協議資金不足，早期大額質押者在時間累積後可能耗盡整個獎勵池。' },
+    ]
+  },
+  nft: {
+    score: 44, level: 'LOW',
+    summary: 'NFT 交易市場',
+    findings: [
+      { sev: 'medium', icon: '🟡', title: '創作者版稅可被繞過', desc: '賣家可以用 0 元標價上架，再從自己控制的第二個地址購買，完全繞過創作者版稅費用。' },
+      { sev: 'medium', icon: '🟡', title: '搶先交易漏洞', desc: 'buy() 在執行交換前讀取價格。賣家可在買家提交交易和執行之間下架並以更高價格重新上架。' },
+      { sev: 'low', icon: '🟢', title: '缺少最低上架價格', desc: '塵埃掛單（1 MIST 標價）會製造市場雜訊，干擾價格發現機制。' },
+    ]
+  }
+};
+
+const DEFI_RESULTS_ZH = {
+  haedal: { score: 28, level: 'LOW', findings: [
+    { sev: 'low', icon: '🟢', title: 'LST 脫鉤風險：低', desc: 'haSUI 維持健康的 1:1.02 錨定比率，目前未偵測到異常贖回壓力。' },
+    { sev: 'low', icon: '🟢', title: '驗證者集中度：適中', desc: '質押量分散至 18 個驗證者，最大驗證者持有 12%，在可接受範圍內。' },
+    { sev: 'medium', icon: '🟡', title: 'WAL 質押池使用率偏高', desc: 'WAL 池容量已達 87%，即將到達上限可能導致暫時性存入排隊。' },
+  ]},
+  cetus: { score: 51, level: 'MEDIUM', findings: [
+    { sev: 'medium', icon: '🟡', title: '集中流動性 Gamma 風險', desc: '當前 tick 附近有大型 CLMM 部位，高波動事件期間可能造成放大的無常損失。' },
+    { sev: 'high', icon: '🔴', title: 'SUI/USDC 池儲備失衡', desc: '當前儲備比率與預期偏差達 34%，存在大額部位操縱風險。' },
+    { sev: 'low', icon: '🟢', title: '手續費等級分布健康', desc: '交易量均勻分布於 0.01%、0.05% 和 0.3% 費率層，無單一費率依賴風險。' },
+  ]},
+  scallop: { score: 36, level: 'LOW', findings: [
+    { sev: 'low', icon: '🟢', title: '抵押品健康狀況良好', desc: '平均抵押率達 187%，所有活躍部位的清算緩衝充足。' },
+    { sev: 'medium', icon: '🟡', title: 'USDC 供應上限接近', desc: 'USDC 借貸市場已達供應上限的 91%，若到達上限可能引發利率急升。' },
+    { sev: 'low', icon: '🟢', title: 'Oracle 資料新鮮度良好', desc: '所有價格資料在最近 2 個區塊內更新，未偵測到過期資料。' },
+  ]},
+  turbos: { score: 42, level: 'LOW', findings: [
+    { sev: 'low', icon: '🟢', title: '流動性深度：充足', desc: '$50K SUI 交換的價格衝擊為 0.31%，足以支撐散戶交易活動。' },
+    { sev: 'medium', icon: '🟡', title: 'Tick 範圍高度集中', desc: '超過 60% 流動性集中在 ±2% 範圍內，超出區間事件將導致劇烈滑點。' },
+    { sev: 'low', icon: '🟢', title: '協議手續費累積正常', desc: '手續費儲備以預期速率增長，未偵測到異常累積或異常流失。' },
+  ]},
+};
+
 // ── State ─────────────────────────────────────────────────────────────────
 let currentSample = null;
 let selectedDefi = null;
 let storedReports = {};
+let lang = 'en'; // 'en' or 'zh'
+
+function toggleLang() {
+  lang = lang === 'en' ? 'zh' : 'en';
+  const btn = document.getElementById('lang-btn');
+  btn.textContent = lang === 'en' ? '🌐 中文' : '🌐 English';
+  // Re-render result if visible
+  const resultArea = document.getElementById('result-area');
+  if (resultArea.style.display !== 'none' && resultArea.innerHTML && currentSample) {
+    const results = lang === 'zh' ? SCAN_RESULTS_ZH : SCAN_RESULTS;
+    showResult(results[currentSample]);
+  }
+  // Re-render defi result if visible
+  const defiResult = document.getElementById('defi-result');
+  if (defiResult && defiResult.style.display !== 'none' && selectedDefi) {
+    const r = (lang === 'zh' ? DEFI_RESULTS_ZH : DEFI_RESULTS)[selectedDefi];
+    const proto = DEFI_PROTOCOLS.find(p => p.id === selectedDefi);
+    renderDefiResult(r, proto);
+  }
+}
 
 // ── Tab switching ─────────────────────────────────────────────────────────
 function switchTab(name, btn) {
@@ -622,7 +707,8 @@ async function runScan() {
   document.getElementById('loading-area').style.display = 'none';
   document.getElementById('input-area').style.display = '';
 
-  const result = currentSample ? SCAN_RESULTS[currentSample] : generateGenericResult(input);
+  const results = lang === 'zh' ? SCAN_RESULTS_ZH : SCAN_RESULTS;
+  const result = currentSample ? results[currentSample] : generateGenericResult(input);
   showResult(result);
 }
 
@@ -694,12 +780,12 @@ function showResult(r) {
           </div>
         </div>
         <button class="store-btn" onclick="storeOnWalrus('${blobId}', this)" id="store-btn-${blobId}">
-          🐋 Store Report on Walrus
+          🐋 ${lang === 'zh' ? '將報告存至 Walrus' : 'Store Report on Walrus'}
         </button>
         <div id="stored-${blobId}" style="display:none;"></div>
       </div>
       <div style="margin-top:1rem;text-align:center;">
-        <button onclick="resetScanner()" style="background:transparent;border:1px solid var(--sui-border);color:var(--sui-muted);padding:9px 24px;border-radius:8px;cursor:pointer;font-family:var(--font-body);font-size:13px;">← Scan Another Contract</button>
+        <button onclick="resetScanner()" style="background:transparent;border:1px solid var(--sui-border);color:var(--sui-muted);padding:9px 24px;border-radius:8px;cursor:pointer;font-family:var(--font-body);font-size:13px;">← ${lang === 'zh' ? '掃描其他合約' : 'Scan Another Contract'}</button>
       </div>
     </div>
   `;
@@ -757,9 +843,15 @@ async function runDefiScan() {
   btn.disabled = true; btn.textContent = '⏳ Analyzing...';
   await delay(2000);
   btn.disabled = false; btn.textContent = '⚡ Analyze Selected Protocol';
-  const r = DEFI_RESULTS[selectedDefi];
+  const r = (lang === 'zh' ? DEFI_RESULTS_ZH : DEFI_RESULTS)[selectedDefi];
   const proto = DEFI_PROTOCOLS.find(p => p.id === selectedDefi);
+  renderDefiResult(r, proto);
+}
+
+function renderDefiResult(r, proto) {
   const levelClass = r.level === 'HIGH' ? 'risk-high' : r.level === 'MEDIUM' ? 'risk-medium' : 'risk-low';
+  const storeLabel = lang === 'zh' ? '🐋 將 DeFi 風險報告存至 Walrus' : '🐋 Store DeFi Risk Report on Walrus';
+  const storedLabel = lang === 'zh' ? '✅ 已存至 Walrus！' : '✅ Stored on Walrus!';
   const findingsHTML = r.findings.map(f => `
     <div class="finding finding-${f.sev}" style="margin-bottom:8px;">
       <span class="finding-icon">${f.icon}</span>
@@ -785,7 +877,7 @@ async function runDefiScan() {
     ${findingsHTML}
     <div class="walrus-section" style="margin-top:1rem;">
       <div class="walrus-header"><span>🐋</span><span class="walrus-logo">WALRUS</span></div>
-      <button class="store-btn" onclick="this.disabled=true;this.textContent='✅ Stored on Walrus!'">🐋 Store DeFi Risk Report on Walrus</button>
+      <button class="store-btn" onclick="this.disabled=true;this.textContent='${storedLabel}'">${storeLabel}</button>
     </div>
   `;
   el.style.display = '';
